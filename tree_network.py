@@ -11,6 +11,8 @@ from modules.criterions import SeqKD
 from modules import BiLSTMLayer, TemporalConv
 import modules.resnet as resnet
 
+target = 'phoenix2014T' # phoenix2014T, phoenix2014, CSLDaily
+
 class Identity(nn.Module):
     def __init__(self):
         super(Identity, self).__init__()
@@ -66,9 +68,10 @@ class SLRModel(nn.Module):
 
         self.vf = nn.Linear(hidden_size, 768)
         self.tf = nn.Linear(77*768, 768)
-        self.l1 = torch.load("./HDT_prototype/l1.pt").cuda()
-        self.l2 = torch.load("./HDT_prototype/l2.pt").cuda()
-        self.up = torch.load("./HDT_prototype/up_matrix.pt").cuda()
+        self.l1 = torch.load("./HDT_prototype/l1_{}.pt".format(target)).cuda()
+        self.l2 = torch.load("./HDT_prototype/l2_{}.pt".format(target)).cuda()
+        self.up = torch.load("./HDT_prototype/up_matrix_{}.pt".format(target)).cuda()
+        self.ls = torch.load("./HDT_prototype/ls_matrix_{}.pt".format(target)).cuda()
 
     def backward_hook(self, module, grad_input, grad_output):
         for g in grad_input:
@@ -89,17 +92,17 @@ class SLRModel(nn.Module):
         for i, idx in enumerate(l1_index):
             up_row = self.up[idx, l2_index_list[i], :].view(1, -1) # 1 x n
             up_list.append(up_row)
-        up_matrix = torch.cat(up_list, dim=0) # T x n
+        up_matrix = torch.cat(up_list, dim=0) # TB x n
         return up_matrix
 
     def HDT_search(self, visual_feature):
-        v_f = self.vf(visual_feature) # T x C'
+        v_f = self.vf(visual_feature).view(visual_feature.shape[0]*visual_feature.shape[1], -1) # TB x C'
         t_f = self.tf(self.l1) # l1 x C'
         normalized_visual = F.normalize(v_f, dim=1)
         normalized_textual = F.normalize(t_f, dim=1)
 
-        l1_similarity = torch.matmul(normalized_visual, normalized_textual.T) # T x l1
-        _, l1_index = torch.max(l1_similarity, dim=1) # T
+        l1_similarity = torch.matmul(normalized_visual, normalized_textual.T) # TB x l1
+        _, l1_index = torch.max(l1_similarity, dim=1) # TB
 
         l2_index_list = []
         for i, idx in enumerate(l1_index):
@@ -113,7 +116,17 @@ class SLRModel(nn.Module):
 
         up_matrix = self.Hierarchical_updating(l1_index, l2_index_list)
 
-        return up_matrix
+        return up_matrix, l1_similarity
+    
+    def CAE(self, logits):
+        logits = logits.view(logits.shape[0]*logits.shape[1], -1) # TB x n
+        _, idx = torch.max(logits, dim=1) # TB
+
+        p_sample = []
+        for i in idx:
+            p_sample.append(self.ls[i.item()].view(1, -1))
+        p_sample = torch.cat(p_sample, dim=0) # TB x l1
+        return p_sample
 
     def forward(self, x, len_x, label=None, label_lgt=None):
         if len(x.shape) == 5:
@@ -132,13 +145,22 @@ class SLRModel(nn.Module):
         x = conv1d_outputs['visual_feat']
         lgt = conv1d_outputs['feat_len']
         tm_outputs = self.temporal_model(x, lgt)
-        outputs = self.classifier(tm_outputs['predictions'])
+        outputs = self.classifier(tm_outputs['predictions']) # T x B x n
 
-        up_matrix = self.HDT_search(tm_outputs['predictions'])
-        up_outputs = torch.mul(outputs, up_matrix)
+        if self.training:
+            up_matrix, similarity = self.HDT_search(tm_outputs['predictions']) # TB x n, TB x l1
+            up_matrix = up_matrix.view(outputs.shape[0], outputs.shape[1], -1) # T x B x n
+            up_outputs = torch.mul(outputs, up_matrix)
+
+            p_sample = self.CAE(outputs) # TB x l1
+            similarity = torch.mul(similarity.softmax(-1), p_sample) # TB x l1
+            similarity = torch.sum(similarity, dim=1) / similarity.shape[1] # TB
+        else:
+            similarity = None
+            up_outputs = None
 
         pred = None if self.training \
-            else self.decoder.decode(up_outputs, lgt, batch_first=False, probs=False)
+            else self.decoder.decode(outputs, lgt, batch_first=False, probs=False)
         conv_pred = None if self.training \
             else self.decoder.decode(conv1d_outputs['conv_logits'], lgt, batch_first=False, probs=False)
 
@@ -152,6 +174,8 @@ class SLRModel(nn.Module):
             "recognized_sents": pred,
             "loss_LiftPool_u": conv1d_outputs['loss_LiftPool_u'],
             "loss_LiftPool_p": conv1d_outputs['loss_LiftPool_p'],
+            "up_outputs": up_outputs,
+            "similarity": similarity,
         }
 
     def criterion_calculation(self, ret_dict, label, label_lgt):
@@ -179,6 +203,9 @@ class SLRModel(nn.Module):
             elif k == 'Cp':
                 total_loss['Cp'] = weight * ret_dict["loss_LiftPool_p"]   
                 loss += total_loss['Cp'] 
+            elif k == 'CAE':
+                total_loss['CAE'] = weight * torch.sum(-torch.where(ret_dict["similarity"] > 0, torch.log(ret_dict["similarity"]), 0)) / ret_dict["similarity"].shape[0]
+                loss += total_loss['CAE'] 
         return loss, total_loss
 
     def criterion_init(self):

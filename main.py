@@ -58,7 +58,6 @@ class Processor():
             total_time = 0
             epoch_time = 0
             self.recoder.print_log('Parameters:\n{}\n'.format(str(vars(self.arg))))
-            seq_model_list = []
             for epoch in range(self.arg.optimizer_args['start_epoch'], self.arg.num_epoch):
                 save_model = epoch % self.arg.save_interval == 0
                 eval_model = epoch % self.arg.eval_interval == 0
@@ -77,11 +76,6 @@ class Processor():
                     self.save_model(epoch, model_path)
                     self.recoder.print_log('Save best model')
                 self.recoder.print_log('Best_dev: {:05.2f}, Epoch : {}'.format(best_dev, best_epoch))
-                if save_model:
-                    model_path = "{}dev_{:05.2f}_epoch{}_model.pt".format(self.arg.work_dir, dev_wer, epoch)
-                    seq_model_list.append(model_path)
-                    print("seq_model_list", seq_model_list)
-                    self.save_model(epoch, model_path)
                 epoch_time = time.time() - epoch_time
                 total_time += epoch_time
                 torch.cuda.empty_cache()
@@ -111,7 +105,6 @@ class Processor():
             total_time = 0
             epoch_time = 0
             self.recoder.print_log('Parameters:\n{}\n'.format(str(vars(self.arg))))
-            seq_model_list = []
             for name, m in self.model.conv2d.named_modules():
                 m.requires_grad = False
             for name, m in self.model.conv1d.named_modules():
@@ -141,11 +134,6 @@ class Processor():
                     self.save_model(epoch, model_path)
                     self.recoder.print_log('Save best model')
                 self.recoder.print_log('Best_dev: {:05.2f}, Epoch : {}'.format(best_dev, best_epoch))
-                if save_model:
-                    model_path = "{}dev_{:05.2f}_epoch{}_model.pt".format(self.arg.work_dir, dev_wer, epoch)
-                    seq_model_list.append(model_path)
-                    print("seq_model_list", seq_model_list)
-                    self.save_model(epoch, model_path)
                 epoch_time = time.time() - epoch_time
                 total_time += epoch_time
                 torch.cuda.empty_cache()
@@ -209,7 +197,7 @@ class Processor():
                     print('Can Not Remove Weights: {}.'.format(w))
         weights = self.modified_weights(state_dict['model_state_dict'], False)
         # weights = self.modified_weights(state_dict['model_state_dict'])
-        model.load_state_dict(weights, strict=True)
+        model.load_state_dict(weights, strict=False)
 
     @staticmethod
     def modified_weights(state_dict, modified=False):

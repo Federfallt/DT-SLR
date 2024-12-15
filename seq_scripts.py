@@ -99,14 +99,14 @@ def seq_eval(cfg, loader, model, device, mode, epoch, work_dir, recoder,
         lstm_ret = 100.0
     finally:
         pass
-    del conv_ret
-    del total_sent
-    del total_info
-    del total_conv_sent
-    del vid
-    del vid_lgt
-    del label
-    del label_lgt
+    #del conv_ret
+    #del total_sent
+    #del total_info
+    #del total_conv_sent
+    #del vid
+    #del vid_lgt
+    #del label
+    #del label_lgt
     gc.collect()
     recoder.print_log(f"Epoch {epoch}, {mode} {lstm_ret: 2.2f}%", f"{work_dir}/{mode}.txt")
     return lstm_ret
