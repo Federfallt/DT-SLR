@@ -21,7 +21,6 @@ loss_weights:
   Dist: 25.0
   Cu: 0.0005
   Cp: 0.0005
-  CAE: 0.0005
 #load_weights: ''
 
 optimizer_args:
