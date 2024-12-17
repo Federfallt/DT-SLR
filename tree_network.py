@@ -11,7 +11,7 @@ from modules.criterions import SeqKD
 from modules import BiLSTMLayer, TemporalConv
 import modules.resnet as resnet
 
-target = 'phoenix2014T' # phoenix2014T, phoenix2014, CSLDaily
+target = 'phoenix2014' # phoenix2014T, phoenix2014, CSLDaily
 
 class Identity(nn.Module):
     def __init__(self):
@@ -169,7 +169,7 @@ class SLRModel(nn.Module):
             #"visual_features": x,
             "feat_len": lgt,
             "conv_logits": conv1d_outputs['conv_logits'],
-            "sequence_logits": up_outputs,
+            "sequence_logits": outputs,
             "conv_sents": conv_pred,
             "recognized_sents": pred,
             "loss_LiftPool_u": conv1d_outputs['loss_LiftPool_u'],
