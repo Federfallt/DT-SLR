@@ -11,7 +11,7 @@ from modules.criterions import SeqKD
 from modules import BiLSTMLayer, TemporalConv
 import modules.resnet as resnet
 
-target = 'phoenix2014' # phoenix2014T, phoenix2014, CSLDaily
+target = 'phoenix2014T' # phoenix2014T, phoenix2014, CSLDaily
 
 class Identity(nn.Module):
     def __init__(self):
@@ -124,7 +124,10 @@ class SLRModel(nn.Module):
 
         p_sample = []
         for i in idx:
-            p_sample.append(self.ls[i.item()].view(1, -1))
+            if i == 0:
+                p_sample.append(torch.zeros(1, 100).cuda())
+            else:
+                p_sample.append(self.ls[i.item()].view(1, -1))
         p_sample = torch.cat(p_sample, dim=0) # TB x l1
         return p_sample
 
@@ -154,7 +157,9 @@ class SLRModel(nn.Module):
 
             p_sample = self.CAE(outputs) # TB x l1
             similarity = torch.mul(similarity.softmax(-1), p_sample) # TB x l1
-            similarity = torch.sum(similarity, dim=1) / similarity.shape[1] # TB
+            mask = torch.any(similarity!= 0, dim=1)
+            similarity = similarity[mask]
+            similarity = torch.sum(similarity, dim=1) / similarity.shape[1]
         else:
             similarity = None
             up_outputs = None
@@ -204,7 +209,7 @@ class SLRModel(nn.Module):
                 total_loss['Cp'] = weight * ret_dict["loss_LiftPool_p"]   
                 loss += total_loss['Cp'] 
             elif k == 'CAE':
-                total_loss['CAE'] = weight * torch.sum(-torch.where(ret_dict["similarity"] > 0, torch.log(ret_dict["similarity"]), 0)) / ret_dict["similarity"].shape[0]
+                total_loss['CAE'] = weight * torch.sum(ret_dict["similarity"])
                 loss += total_loss['CAE'] 
         return loss, total_loss
 
