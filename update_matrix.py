@@ -6,7 +6,7 @@ target = 'phoenix2014' # phoenix2014T, phoenix2014, CSLDaily
 df = pd.read_csv('./sentence_cluster/description_{}.csv'.format(target))
 
 num_classes = 1296 # phoenix2014T: 1116, phoenix2014: 1296, CSLDaily: 2001
-alpha = 1.5
+alpha = 1.2
 l1 = df['l1_label'].max() + 1
 l2_max = df['l2_label'].max() + 1
 
