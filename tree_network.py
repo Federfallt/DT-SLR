@@ -156,10 +156,11 @@ class SLRModel(nn.Module):
             up_outputs = torch.mul(outputs, up_matrix)
 
             p_sample = self.CAE(outputs) # TB x l1
-            similarity = torch.mul(similarity.softmax(-1), p_sample) # TB x l1
-            mask = torch.any(similarity!= 0, dim=1)
+            similarity = similarity.log_softmax(-1)
+            similarity = torch.mul(similarity, p_sample) # TB x l1
+            mask = torch.any(p_sample!= 0, dim=1)
             similarity = similarity[mask]
-            similarity = torch.sum(similarity, dim=1) / similarity.shape[1]
+            similarity = -torch.sum(similarity, dim=1)
         else:
             similarity = None
             up_outputs = None
