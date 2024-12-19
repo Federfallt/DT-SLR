@@ -169,7 +169,7 @@ class SLRModel(nn.Module):
             #"visual_features": x,
             "feat_len": lgt,
             "conv_logits": conv1d_outputs['conv_logits'],
-            "sequence_logits": up_outputs,
+            "sequence_logits": outputs,
             "conv_sents": conv_pred,
             "recognized_sents": pred,
             "loss_LiftPool_u": conv1d_outputs['loss_LiftPool_u'],
